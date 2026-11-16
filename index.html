@@ -343,7 +343,15 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   .menu-btn { width: 32px; height: 32px; }
   .next-btn { height: 32px; font-size: 18px; }
   .panel { flex-direction: row; border-radius: 14px; }
+  /* life totals sit towards the middle of the table, in line above and below each other.
+     A turned panel shows its own left on the viewer's right, so the top row is mirrored. */
+  .panel.side-l,
+  body:not(.flat) .panel.top.side-r { flex-direction: row-reverse; }
+  body:not(.flat) .panel.top.side-l { flex-direction: row; }
   .panel header { position: absolute; top: 4px; right: 6px; z-index: 1; min-height: 0; padding: 0; }
+  .panel.side-l header,
+  body:not(.flat) .panel.top.side-r header { right: auto; left: 6px; }
+  body:not(.flat) .panel.top.side-l header { left: auto; right: 6px; }
   .turn-btn { padding: 4px 8px; font-size: 11px; }
   .stage { flex: 1 1 90px; min-width: 90px; }
   .tap { font-size: 26px; padding: 2px 0; }
@@ -496,7 +504,9 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   function build(i) {
     var panel = document.createElement('section');
     var top = i < topCount();
-    panel.className = 'panel' + (top ? ' top' : '');
+    var first = top ? 0 : topCount(), last = top ? topCount() - 1 : N - 1;
+    var side = first === last ? '' : i === first ? ' side-l' : i === last ? ' side-r' : '';
+    panel.className = 'panel' + (top ? ' top' : '') + side;
     panel.style.setProperty('--c', 'var(--p' + i + ')');
     panel.style.setProperty('--c2', 'var(--p' + i + 'm)');
     panel.style.setProperty('--d', 'var(--p' + i + 'd)');
