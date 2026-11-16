@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f1ede6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lifetracker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Commander Lifetracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: one screen, 2x2 table of full-bleed player panels, top row turned
+   towards the players sitting opposite. Single dark theme by choice. */
+:root {
+  color-scheme: light;
+  --ink: #3a3632;             /* warm neutral for menu text */
+  --paper: #fbf9f5;
+  --table: #f1ede6;
+  /* each player: pastel, a deeper step of it, and a dark tone of the same hue */
+  --p0: #e8b1b8; --p0m: #d88f99; --p0d: #7a2f3b;   /* rose */
+  --p1: #b0c7e9; --p1m: #8aa9d6; --p1d: #2c4775;   /* sky */
+  --p2: #afd3b6; --p2m: #8ab795; --p2d: #2c5a3a;   /* sage */
+  --p3: #e4d098; --p3m: #d0b46d; --p3d: #6b5216;   /* butter */
+  --p4: #cdbbe8; --p4m: #b29ddb; --p4d: #4a2f7a;   /* lilac */
+  --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--table);
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.panel :focus-visible { outline-color: var(--d); }
+
+.table {
+  height: 100%;
+  display: flex; flex-direction: column;
+  gap: 6px;
+  padding: calc(6px + env(safe-area-inset-top)) calc(6px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
+}
+.panel {
+  color: var(--d);
+  background: var(--c);
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+  position: relative;
+  transition: filter .3s;
+}
+.row { flex: 1 1 0; min-height: 0; display: flex; gap: 6px; }
+.panel { flex: 1 1 0; }
+body:not(.flat) .panel.top { transform: rotate(180deg); }
+.panel.out { filter: grayscale(.85); opacity: .5; }
+.panel.lit, .panel.active { box-shadow: inset 0 0 0 6px var(--d); }
+
+.panel header { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 8px 12px 0; }
+.turn-btn {
+  flex: none;
+  padding: 6px 10px;
+  border: 2px solid var(--d); border-radius: 99px;
+  color: var(--d);
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+}
+.turn-btn[hidden] { display: none; }
+.name {
+  flex: 1; min-width: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 2px 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  -webkit-user-select: text; user-select: text;
+}
+.name:focus { outline: none; border-bottom-color: var(--d); }
+
+.stage { flex: 1; min-height: 0; position: relative; container-type: size; }
+.tap {
+  position: absolute; left: 0; right: 0; height: 50%;
+  display: flex; justify-content: center;
+  font-family: var(--font-display);
+  font-size: 38px; line-height: 1;
+  padding: 6px 0;
+  color: var(--d); font-weight: 800;
+}
+.tap.plus { top: 0; align-items: flex-start; }
+.tap.minus { bottom: 0; align-items: flex-end; }
+.tap:active { background: var(--c2); }
+.tap:focus-visible { outline-offset: -4px; }
+.readout {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: min(50cqw, 46cqh);
+  line-height: .9;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+.num.bump { animation: bump .16s ease-out; }
+@keyframes bump { from { transform: scale(1.09); } to { transform: scale(1); } }
+.sub {
+  font-weight: 700;
+  min-height: 1.3em;
+  font-size: 13px;
+  text-align: center;
+  padding: 0 12px;
+  overflow-wrap: anywhere;
+}
+.sub:empty { display: none; }
+.delta {
+  position: absolute; top: 8px; right: 14px;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 24px; font-weight: 700;
+  opacity: 0; transition: opacity .25s;
+}
+.delta.show { opacity: .9; }
+.tag {
+  margin-top: 4px;
+  background: var(--d); color: var(--c);
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 99px;
+  white-space: nowrap;
+}
+.tag:empty { display: none; }
+
+.panel footer {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  justify-content: center; align-items: flex-end;
+  padding: 0 8px 9px;
+}
+.group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.group span { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.chips { display: flex; gap: 4px; }
+.chip {
+  display: flex; align-items: center; gap: 5px;
+  min-width: 42px; min-height: 36px;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--c2); color: var(--d);
+  font-family: var(--font-display);
+  font-size: 21px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.chip i {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid;
+}
+.chip[aria-pressed="true"] { background: var(--d); color: var(--c); }
+.chip.lethal:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 2px var(--d); }
+
+.bar {
+  flex: none; height: 40px;
+  display: flex; align-items: center; gap: 14px;
+}
+.bar div {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.bar div:first-child { text-align: right; }
+.bar { justify-content: center; position: relative; }
+.bar .left { flex: none; display: flex; align-items: center; gap: 12px; }
+.bar .right { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; }
+#clock { margin-left: auto; padding-right: 8px; }
+.next-btn {
+  flex: none;
+  height: 40px;
+  padding: 0 16px 0 11px;
+  border-radius: 99px;
+  background: var(--ink); color: var(--paper);
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .bar { justify-content: flex-start; gap: 8px; }
+  .bar .left { gap: 8px; }
+}
+.next-btn[hidden] { display: none; }
+.next-btn:active { opacity: .75; }
+.menu-btn {
+  flex: none;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  display: grid; place-items: center;
+}
+.menu-btn span, .menu-btn span::before, .menu-btn span::after {
+  display: block; width: 16px; height: 2px; background: var(--ink); border-radius: 2px;
+}
+.menu-btn span { position: relative; }
+.menu-btn span::before, .menu-btn span::after { content: ""; position: absolute; left: 0; }
+.menu-btn span::before { top: -5px; }
+.menu-btn span::after { top: 5px; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 3;
+  background: rgba(58, 54, 50, .5);
+  display: grid; place-items: center;
+  padding: 16px;
+}
+.overlay[hidden] { display: none; }
+.sheet {
+  width: min(360px, 100%);
+  max-height: 100%; overflow-y: auto;
+  background: var(--paper);
+  border: 1px solid rgba(58, 54, 50, .12);
+  border-radius: 22px;
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.sheet h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px; letter-spacing: .03em; text-transform: uppercase;
+}
+.sheet p { margin: 0; font-size: 14px; line-height: 1.45; opacity: .85; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; align-items: center; gap: 10px; }
+legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
+.seg { display: flex; gap: 4px; flex: 1; }
+.seg label { flex: 1; position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span {
+  display: block; text-align: center; padding: 9px 0;
+  border-radius: 9px; background: rgba(58, 54, 50, .08);
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+}
+.seg input:checked + span { background: var(--ink); color: var(--paper); }
+.seg input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 2px; }
+.btn {
+  padding: 13px 14px; border-radius: 10px;
+  background: rgba(58, 54, 50, .08);
+  font-weight: 700; text-align: center;
+}
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn:active { opacity: .75; }
+.check { display: flex; gap: 10px; align-items: center; font-size: 15px; }
+.check input { width: 20px; height: 20px; accent-color: var(--ink); }
+
+/* phone lying down: little height, so life sits beside the counters */
+@media (orientation: landscape) and (max-height: 520px) {
+  .table { gap: 4px; padding: calc(4px + env(safe-area-inset-top)) calc(4px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(4px + env(safe-area-inset-left)); }
+  .row { gap: 4px; }
+  .bar { height: 34px; }
+  .menu-btn { width: 32px; height: 32px; }
+  .next-btn { height: 32px; font-size: 18px; }
+  .panel { flex-direction: row; border-radius: 14px; }
+  .panel header { position: absolute; top: 4px; left: 6px; z-index: 1; min-height: 0; padding: 0; }
+  .turn-btn { padding: 4px 8px; font-size: 11px; }
+  .stage { flex: 1 1 90px; min-width: 90px; }
+  .tap { font-size: 26px; padding: 2px 0; }
+  .num { font-size: min(50cqw, 44cqh); }
+  .sub { font-size: 11px; padding: 0 4px; min-height: 0; }
+  .tag { font-size: 10px; padding: 2px 6px; margin-top: 2px; }
+  .delta { font-size: 16px; top: 2px; right: 6px; }
+  .panel footer { flex: 0 1 auto; align-content: center; padding: 4px 6px; gap: 4px 8px; }
+  .chips { flex-wrap: wrap; justify-content: center; }
+  .chip { min-width: 38px; min-height: 32px; font-size: 19px; padding: 0 6px; }
+  .sheet { width: min(560px, 100%); padding: 14px; gap: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel, .delta { transition: none; }
+  .num.bump { animation: none; }
+}
+</style>
+</head>
+<body>
+<main class="table" id="table">
+  <div class="row" id="row-top"></div>
+  <div class="bar">
+    <div class="left">
+      <button class="next-btn" id="next">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        Next turn
+      </button>
+      <span id="round"></span>
+    </div>
+    <button class="menu-btn" id="menu-btn" aria-label="Öppna spelmenyn"><span></span></button>
+    <div class="right">
+      <span id="clock" aria-label="Speltid">0:00</span>
+    </div>
+  </div>
+  <div class="row" id="row-bottom"></div>
+</main>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+    <h1 id="menu-title">Spelmeny</h1>
+    <fieldset>
+      <legend>Spelare</legend>
+      <div class="seg">
+        <label><input type="radio" name="count" id="count-2" value="2"><span>2</span></label>
+        <label><input type="radio" name="count" id="count-3" value="3"><span>3</span></label>
+        <label><input type="radio" name="count" id="count-4" value="4"><span>4</span></label>
+        <label><input type="radio" name="count" id="count-5" value="5"><span>5</span></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Startliv</legend>
+      <div class="seg">
+        <label><input type="radio" name="start" id="start-20" value="20"><span>20</span></label>
+        <label><input type="radio" name="start" id="start-30" value="30"><span>30</span></label>
+        <label><input type="radio" name="start" id="start-40" value="40"><span>40</span></label>
+      </div>
+    </fieldset>
+    <button class="btn primary" id="new-game">Starta nytt spel</button>
+    <label class="check"><input type="checkbox" id="rotate"> Vänd de övre spelarna mot andra sidan bordet</label>
+    <p>Tryck på + ovanför eller − nedanför livet för att ändra det, håll in för att räkna snabbt. Tryck på en ruta under livet för att räkna commander-skada från den spelaren, poison eller commander tax. Commander-skada dras också från livet. Starta nytt spel slumpar vem som börjar. Tryck sedan på Next turn i mitten när turen är klar. Om ingen har börjat ännu slumpar Next turn en startspelare.</p>
+    <button class="btn" id="close">Stäng</button>
+  </div>
+</div>
+
+<div class="overlay" id="reminder" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title">
+    <h1 id="reminder-title">Glöm inte!</h1>
+    <p id="reminder-text"></p>
+    <button class="btn primary" id="reminder-ok">Okej</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'commander-lifetracker-v1';
+  var MAX = 5;
+  var state = load() || fresh(40, 4);
+  var N = state.players.length;
+  var modes = [], modeTimers = [], deltaAcc = [], deltaTimers = [];   // mode: 'life' | 'poison' | 'tax' | 'c0'..'c4'
+  var COLORS = ['rosa', 'blå', 'grön', 'gul', 'lila'];
+  var els = [];
+  var rolling = false;
+
+  function topCount() { return Math.ceil(N / 2); }
+  function order() {                               // clockwise round the table
+    var o = [], i;
+    for (i = 0; i < topCount(); i++) o.push(i);
+    for (i = N - 1; i >= topCount(); i--) o.push(i);
+    return o;
+  }
+
+  function fresh(start, n) {
+    var players = [];
+    for (var i = 0; i < n; i++) {
+      players.push({ life: start, cmd: [0, 0, 0, 0, 0], poison: 0, tax: 0 });
+    }
+    return { start: start, count: n, rotate: true, players: players,
+             turn: { active: -1, first: -1, round: 1 }, startedAt: null };
+  }
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.players && s.players.length >= 2 && s.players.length <= MAX) {
+        s.players.forEach(function (p) {
+          p.tax = p.tax || 0;
+          while (p.cmd.length < MAX) p.cmd.push(0);
+        });
+        if (!s.turn) s.turn = { active: -1, first: -1, round: 1 };
+        if (!s.startedAt) s.startedAt = null;
+        if (!s.count) s.count = s.players.length;
+        return s;
+      }
+    } catch (e) {}
+    return null;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function outReason(p) {
+    if (p.life <= 0) return 'Ute · 0 liv';
+    if (p.poison >= 10) return 'Ute · 10 poison';
+    for (var j = 0; j < MAX; j++) if (p.cmd[j] >= 21) return 'Ute · 21 commander-skada';
+    return '';
+  }
+
+  // ---------- build ----------
+  var rowTop = document.getElementById('row-top');
+  var rowBottom = document.getElementById('row-bottom');
+  function buildAll() {
+    modeTimers.forEach(clearTimeout); deltaTimers.forEach(clearTimeout);
+    N = state.players.length;
+    els = []; modes = []; deltaAcc = []; modeTimers = []; deltaTimers = [];
+    rowTop.innerHTML = ''; rowBottom.innerHTML = '';
+    for (var i = 0; i < N; i++) { modes.push('life'); deltaAcc.push(0); build(i); }
+  }
+
+  function build(i) {
+    var panel = document.createElement('section');
+    var top = i < topCount();
+    panel.className = 'panel' + (top ? ' top' : '');
+    panel.style.setProperty('--c', 'var(--p' + i + ')');
+    panel.style.setProperty('--c2', 'var(--p' + i + 'm)');
+    panel.style.setProperty('--d', 'var(--p' + i + 'd)');
+
+    var chips = '';
+    for (var j = 0; j < N; j++) {
+      if (j === i) continue;
+      chips += '<button class="chip" data-k="c' + j + '" aria-pressed="false">' +
+               '<i style="background:var(--p' + j + 'm);border-color:var(--p' + j + 'd)"></i><b>0</b></button>';
+    }
+    panel.innerHTML =
+      '<header><button class="turn-btn" hidden></button></header>' +
+      '<div class="stage">' +
+        '<button class="tap plus" aria-label="Öka">+</button>' +
+        '<button class="tap minus" aria-label="Minska">−</button>' +
+        '<div class="readout"><div class="num">0</div><div class="sub"></div><div class="tag"></div></div>' +
+        '<div class="delta" aria-hidden="true"></div>' +
+      '</div>' +
+      '<footer>' +
+        '<div class="group"><span>Commander</span><div class="chips">' + chips + '</div></div>' +
+        '<div class="group"><span>Poison</span><div class="chips"><button class="chip" data-k="poison" aria-pressed="false"><b>0</b></button></div></div>' +
+        '<div class="group"><span>Tax</span><div class="chips"><button class="chip" data-k="tax" aria-pressed="false"><b>0</b></button></div></div>' +
+      '</footer>';
+    (top ? rowTop : rowBottom).appendChild(panel);
+
+    var e = {
+      panel: panel,
+      num: panel.querySelector('.num'),
+      sub: panel.querySelector('.sub'),
+      delta: panel.querySelector('.delta'),
+      tag: panel.querySelector('.tag'),
+      turn: panel.querySelector('.turn-btn'),
+      chips: panel.querySelectorAll('.chip')
+    };
+    els[i] = e;
+
+    e.turn.addEventListener('click', function () {
+      if (state.turn.active === -1) startTurns(i);
+    });
+
+    hold(panel.querySelector('.minus'), function () { change(i, -1); });
+    hold(panel.querySelector('.plus'), function () { change(i, 1); });
+
+    Array.prototype.forEach.call(e.chips, function (chip) {
+      chip.addEventListener('click', function () {
+        var k = chip.getAttribute('data-k');
+        modes[i] = modes[i] === k ? 'life' : k;
+        armModeTimer(i);
+        render(i);
+      });
+    });
+  }
+
+  function hold(btn, fn) {
+    var t, iv, pointerFired = false;
+    function stop() { clearTimeout(t); clearInterval(iv); }
+    btn.addEventListener('pointerdown', function (ev) {
+      if (ev.button) return;
+      pointerFired = true;
+      fn();
+      stop();
+      t = setTimeout(function () { iv = setInterval(fn, 90); }, 450);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (n) { btn.addEventListener(n, stop); });
+    btn.addEventListener('click', function () {      // keyboard activation
+      if (!pointerFired) fn();
+      pointerFired = false;
+    });
+    btn.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+  }
+
+  function armModeTimer(i) {
+    clearTimeout(modeTimers[i]);
+    if (modes[i] === 'life') return;
+    modeTimers[i] = setTimeout(function () { modes[i] = 'life'; render(i); }, 6000);
+  }
+
+  // ---------- logic ----------
+  function change(i, d) {
+    var p = state.players[i], m = modes[i], lifeDelta = 0;
+    if (m === 'life') {
+      p.life += d; lifeDelta = d;
+    } else if (m === 'poison') {
+      p.poison = Math.max(0, p.poison + d);
+    } else if (m === 'tax') {
+      p.tax = Math.max(0, p.tax + d);
+    } else {
+      var j = +m.slice(1);
+      var next = Math.max(0, p.cmd[j] + d);
+      lifeDelta = -(next - p.cmd[j]);
+      p.cmd[j] = next;
+      p.life += lifeDelta;
+    }
+    if (lifeDelta) showDelta(i, lifeDelta);
+    if (!state.startedAt) { state.startedAt = Date.now(); renderBar(); }
+    armModeTimer(i);
+    save();
+    render(i);
+    var n = els[i].num;
+    n.classList.remove('bump'); void n.offsetWidth; n.classList.add('bump');
+  }
+
+  function showDelta(i, d) {
+    deltaAcc[i] += d;
+    var el = els[i].delta, v = deltaAcc[i];
+    el.textContent = v === 0 ? '' : (v > 0 ? '+' + v : '−' + Math.abs(v)) + ' liv';
+    el.classList.toggle('show', v !== 0);
+    clearTimeout(deltaTimers[i]);
+    deltaTimers[i] = setTimeout(function () {
+      deltaAcc[i] = 0; el.classList.remove('show');
+    }, 1800);
+  }
+
+  // ---------- turns and clock ----------
+  function startTurns(i) {
+    state.turn = { active: i, first: i, round: 1 };
+    if (!state.startedAt) state.startedAt = Date.now();
+    save(); renderAll(); renderBar();
+  }
+  function nextTurn() {
+    var ORDER = order(), t = state.turn, pos = ORDER.indexOf(t.active), before = t.round;
+    for (var n = 0; n < N; n++) {
+      pos = (pos + 1) % N;
+      if (ORDER[pos] === t.first) t.round++;
+      if (!outReason(state.players[ORDER[pos]])) break;
+    }
+    t.active = ORDER[pos];
+    save(); renderAll(); renderBar();
+    if (before < 6 && t.round >= 6) remind('Blanda in oanvända länder.');
+  }
+  function renderBar() {
+    document.getElementById('round').textContent = 'Round ' + state.turn.round;
+    var sec = state.startedAt ? Math.max(0, Math.floor((Date.now() - state.startedAt) / 1000)) : 0;
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), ss = sec % 60;
+    document.getElementById('clock').textContent =
+      (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
+  }
+  setInterval(renderBar, 1000);
+  document.getElementById('next').addEventListener('click', function () {
+    if (rolling) return;
+    if (state.turn.active === -1) roll();        // no one has started yet: draw who begins
+    else nextTurn();
+  });
+
+  // ---------- render ----------
+  function render(i) {
+    var p = state.players[i], e = els[i], m = modes[i];
+    if (m === 'life') {
+      e.num.textContent = p.life;
+      e.sub.textContent = '';
+    } else if (m === 'poison') {
+      e.num.textContent = p.poison;
+      e.sub.textContent = 'Poison · liv ' + p.life;
+    } else if (m === 'tax') {
+      e.num.textContent = '+' + p.tax * 2;
+      e.sub.textContent = 'Commander tax · kastad ' + p.tax + (p.tax === 1 ? ' gång' : ' gånger');
+    } else {
+      var j = +m.slice(1);
+      e.num.textContent = p.cmd[j];
+      e.sub.textContent = 'Skada från ' + COLORS[j] + ' · liv ' + p.life;
+    }
+    Array.prototype.forEach.call(e.chips, function (chip) {
+      var k = chip.getAttribute('data-k'), v, label;
+      if (k === 'poison') {
+        v = p.poison; label = 'Poison: ' + v;
+        chip.classList.toggle('lethal', v >= 10);
+      } else if (k === 'tax') {
+        v = '+' + p.tax * 2; label = 'Commander tax: ' + v;
+      } else {
+        var o = +k.slice(1);
+        v = p.cmd[o]; label = 'Commander-skada från ' + COLORS[o] + ': ' + v;
+        chip.classList.toggle('lethal', v >= 21);
+      }
+      chip.querySelector('b').textContent = v;
+      chip.setAttribute('aria-label', label);
+      chip.setAttribute('aria-pressed', String(m === k));
+    });
+    var reason = outReason(p);
+    e.panel.classList.toggle('out', !!reason);
+    var act = state.turn.active;
+    e.panel.classList.toggle('active', act === i);
+    e.tag.textContent = reason;
+    e.turn.hidden = !!reason || act !== -1 || rolling;
+    e.turn.textContent = 'Börjar';
+  }
+  function renderAll() { for (var i = 0; i < N; i++) render(i); }
+
+  // ---------- menu ----------
+  var overlay = document.getElementById('overlay');
+  var rotate = document.getElementById('rotate');
+  function openMenu() {
+    document.getElementById('start-' + state.start).checked = true;
+    document.getElementById('count-' + state.count).checked = true;
+    rotate.checked = state.rotate;
+    overlay.hidden = false;
+    document.getElementById('close').focus();
+  }
+  function closeMenu() { overlay.hidden = true; }
+  document.getElementById('menu-btn').addEventListener('click', openMenu);
+  document.getElementById('close').addEventListener('click', closeMenu);
+  overlay.addEventListener('click', function (ev) { if (ev.target === overlay) closeMenu(); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeMenu(); });
+
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="start"]'), function (r) {
+    r.addEventListener('change', function () { state.start = +r.value; save(); });
+  });
+  rotate.addEventListener('change', function () {
+    state.rotate = rotate.checked; save(); applyLayout();
+  });
+  function applyLayout() { document.body.classList.toggle('flat', !state.rotate); }
+
+  // the table changes at once; players who stay keep their totals
+  function setCount(n) {
+    state.count = n;
+    state.players = state.players.slice(0, n);
+    while (state.players.length < n) {
+      state.players.push({ life: state.start, cmd: [0, 0, 0, 0, 0], poison: 0, tax: 0 });
+    }
+    state.players.forEach(function (p) { for (var j = n; j < MAX; j++) p.cmd[j] = 0; });
+    if (state.turn.active >= n || state.turn.first >= n) state.turn = { active: -1, first: -1, round: 1 };
+    save(); buildAll(); renderAll(); renderBar();
+  }
+  function newGame() {
+    var keepRotate = state.rotate;
+    state = fresh(state.start, state.count);
+    state.rotate = keepRotate;
+    save(); buildAll(); renderAll(); renderBar();
+  }
+  document.getElementById('new-game').addEventListener('click', function () { newGame(); roll(); });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="count"]'), function (r) {
+    r.addEventListener('change', function () {
+      setCount(+r.value);
+    });
+  });
+
+  function roll() {
+    closeMenu();
+    var alive = order().filter(function (i) { return !outReason(state.players[i]); });
+    if (!alive.length) alive = order();
+    var winner = alive[Math.floor(Math.random() * alive.length)];
+    rolling = true;
+    state.turn = { active: -1, first: -1, round: 1 }; renderAll(); renderBar();
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || alive.length === 1) { rolling = false; startTurns(winner); remind(); return; }
+    var total = alive.length * 2 + alive.indexOf(winner) + 1, k = 0;
+    (function step() {
+      els.forEach(function (e) { e.panel.classList.remove('lit'); });
+      var cur = alive[k % alive.length];
+      k++;
+      if (k < total) {
+        els[cur].panel.classList.add('lit');
+        setTimeout(step, 70 + k * 22);
+      } else {
+        rolling = false;
+        startTurns(winner);
+        setTimeout(function () { remind(); }, 700);
+      }
+    })();
+  }
+
+  var reminder = document.getElementById('reminder');
+  function remind(text) {
+    document.getElementById('reminder-text').textContent = text || 'Plocka ut tre basicländer innan ni börjar.';
+    reminder.hidden = false;
+    document.getElementById('reminder-ok').focus();
+  }
+  document.getElementById('reminder-ok').addEventListener('click', function () { reminder.hidden = true; });
+  reminder.addEventListener('click', function (ev) { if (ev.target === reminder) reminder.hidden = true; });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') reminder.hidden = true; });
+
+  // keep the screen awake while playing, where the browser allows it
+  document.addEventListener('pointerdown', function once() {
+    document.removeEventListener('pointerdown', once);
+    try {
+      if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(function () {});
+    } catch (e) {}
+  });
+
+  // offline support when installed on the home screen
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+
+  applyLayout();
+  buildAll();
+  renderAll();
+  renderBar();
+})();
+</script>
+</body>
+</html>
