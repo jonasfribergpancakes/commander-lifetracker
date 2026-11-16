@@ -1,6 +1,6 @@
 // Commander Lifetracker: keeps the app working without a connection.
 // Bump VERSION whenever index.html changes so installed copies update.
-var VERSION = 'lifetracker-v1';
+var VERSION = 'lifetracker-v2';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {

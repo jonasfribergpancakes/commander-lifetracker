@@ -268,6 +268,46 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
 .check { display: flex; gap: 10px; align-items: center; font-size: 15px; }
 .check input { width: 20px; height: 20px; accent-color: var(--ink); }
 
+/* counters submenu, laid over the player's own panel so it turns with them */
+.cpanel {
+  position: absolute; inset: 0; z-index: 2;
+  container-type: inline-size;
+  background: var(--c);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto;
+}
+.cpanel[hidden] { display: none; }
+.chead {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+}
+.cdone {
+  padding: 6px 12px; border-radius: 99px;
+  background: var(--d); color: var(--c);
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+}
+.clist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 6px 16px; }
+.crow {
+  display: grid; grid-template-columns: 1fr 34px 30px 34px; align-items: center; gap: 4px;
+  font-size: 14px; font-weight: 700;
+}
+.crow output {
+  text-align: center;
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cbtn {
+  height: 34px; border-radius: 10px;
+  background: var(--c2); color: var(--d);
+  font-family: var(--font-display); font-size: 22px; font-weight: 800; line-height: 1;
+}
+.cbtn:active { opacity: .7; }
+@container (max-width: 175px) {
+  .crow { grid-template-columns: 30px 1fr 30px; }
+  .crow span { grid-column: 1 / -1; }
+}
+
 /* phone lying down: little height, so life sits beside the counters */
 @media (orientation: landscape) and (max-height: 520px) {
   .table { gap: 4px; padding: calc(4px + env(safe-area-inset-top)) calc(4px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(4px + env(safe-area-inset-left)); }
@@ -282,6 +322,8 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   .tap { font-size: 26px; padding: 2px 0; }
   .num { font-size: min(50cqw, 44cqh); }
   .sub { font-size: 11px; padding: 0 4px; min-height: 0; }
+  .cpanel { padding: 6px 10px; gap: 4px; }
+  .cbtn { height: 30px; }
   .tag { font-size: 10px; padding: 2px 6px; margin-top: 2px; }
   .delta { font-size: 16px; top: 2px; right: 6px; }
   .panel footer { flex: 0 1 auto; align-content: center; padding: 4px 6px; gap: 4px 8px; }
@@ -337,7 +379,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     </fieldset>
     <button class="btn primary" id="new-game">Starta nytt spel</button>
     <label class="check"><input type="checkbox" id="rotate"> Vänd de övre spelarna mot andra sidan bordet</label>
-    <p>Tryck på + ovanför eller − nedanför livet för att ändra det, håll in för att räkna snabbt. Tryck på en ruta under livet för att räkna commander-skada från den spelaren, poison eller commander tax. Commander-skada dras också från livet. Starta nytt spel slumpar vem som börjar. Tryck sedan på Next turn i mitten när turen är klar. Om ingen har börjat ännu slumpar Next turn en startspelare.</p>
+    <p>Tryck på + ovanför eller − nedanför livet för att ändra det, håll in för att räkna snabbt. Tryck på en ruta under livet för att räkna commander-skada från den spelaren, eller commander tax. Counters öppnar en lista med poison, rad, energy, experience och tickets. Commander-skada dras också från livet. Starta nytt spel slumpar vem som börjar. Tryck sedan på Next turn i mitten när turen är klar. Om ingen har börjat ännu slumpar Next turn en startspelare.</p>
     <button class="btn" id="close">Stäng</button>
   </div>
 </div>
@@ -357,6 +399,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   var state = load() || fresh(40, 4);
   var N = state.players.length;
   var modes = [], modeTimers = [], deltaAcc = [], deltaTimers = [];   // mode: 'life' | 'poison' | 'tax' | 'c0'..'c4'
+  var COUNTERS = [['poison', 'Poison'], ['rad', 'Rad'], ['energy', 'Energy'], ['experience', 'Experience'], ['ticket', 'Tickets']];
   var COLORS = ['rosa', 'blå', 'grön', 'gul', 'lila'];
   var els = [];
   var rolling = false;
@@ -369,11 +412,14 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     return o;
   }
 
+  function newPlayer(start) {
+    var c = {};
+    COUNTERS.forEach(function (k) { c[k[0]] = 0; });
+    return { life: start, cmd: [0, 0, 0, 0, 0], counters: c, tax: 0 };
+  }
   function fresh(start, n) {
     var players = [];
-    for (var i = 0; i < n; i++) {
-      players.push({ life: start, cmd: [0, 0, 0, 0, 0], poison: 0, tax: 0 });
-    }
+    for (var i = 0; i < n; i++) players.push(newPlayer(start));
     return { start: start, count: n, rotate: true, players: players,
              turn: { active: -1, first: -1, round: 1 }, startedAt: null };
   }
@@ -383,6 +429,10 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       if (s && s.players && s.players.length >= 2 && s.players.length <= MAX) {
         s.players.forEach(function (p) {
           p.tax = p.tax || 0;
+          if (!p.counters) p.counters = {};
+          COUNTERS.forEach(function (k) { p.counters[k[0]] = p.counters[k[0]] || 0; });
+          if (p.poison) p.counters.poison = p.poison;
+          delete p.poison;
           while (p.cmd.length < MAX) p.cmd.push(0);
         });
         if (!s.turn) s.turn = { active: -1, first: -1, round: 1 };
@@ -399,7 +449,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
 
   function outReason(p) {
     if (p.life <= 0) return 'Ute · 0 liv';
-    if (p.poison >= 10) return 'Ute · 10 poison';
+    if (p.counters.poison >= 10) return 'Ute · 10 poison';
     for (var j = 0; j < MAX; j++) if (p.cmd[j] >= 21) return 'Ute · 21 commander-skada';
     return '';
   }
@@ -429,6 +479,12 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       chips += '<button class="chip" data-k="c' + j + '" aria-pressed="false">' +
                '<i style="background:var(--p' + j + 'm);border-color:var(--p' + j + 'd)"></i><b>0</b></button>';
     }
+    var rows = COUNTERS.map(function (k) {
+      return '<div class="crow"><span>' + k[1] + '</span>' +
+        '<button class="cbtn" data-c="' + k[0] + '" data-d="-1" aria-label="Minska ' + k[1] + '">−</button>' +
+        '<output data-v="' + k[0] + '">0</output>' +
+        '<button class="cbtn" data-c="' + k[0] + '" data-d="1" aria-label="Öka ' + k[1] + '">+</button></div>';
+    }).join('');
     panel.innerHTML =
       '<header><button class="turn-btn" hidden></button></header>' +
       '<div class="stage">' +
@@ -439,9 +495,11 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       '</div>' +
       '<footer>' +
         '<div class="group"><span>Commander</span><div class="chips">' + chips + '</div></div>' +
-        '<div class="group"><span>Poison</span><div class="chips"><button class="chip" data-k="poison" aria-pressed="false"><b>0</b></button></div></div>' +
+        '<div class="group"><span>Counters</span><div class="chips"><button class="chip" data-k="counters"><b>0</b></button></div></div>' +
         '<div class="group"><span>Tax</span><div class="chips"><button class="chip" data-k="tax" aria-pressed="false"><b>0</b></button></div></div>' +
-      '</footer>';
+      '</footer>' +
+      '<div class="cpanel" hidden><div class="chead"><strong>Counters</strong><button class="cdone">Klar</button></div>' +
+      '<div class="clist">' + rows + '</div></div>';
     (top ? rowTop : rowBottom).appendChild(panel);
 
     var e = {
@@ -451,12 +509,25 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       delta: panel.querySelector('.delta'),
       tag: panel.querySelector('.tag'),
       turn: panel.querySelector('.turn-btn'),
-      chips: panel.querySelectorAll('.chip')
+      chips: panel.querySelectorAll('.chip'),
+      cpanel: panel.querySelector('.cpanel'),
+      cvals: panel.querySelectorAll('[data-v]')
     };
     els[i] = e;
 
     e.turn.addEventListener('click', function () {
       if (state.turn.active === -1) startTurns(i);
+    });
+
+    panel.querySelector('.cdone').addEventListener('click', function () { e.cpanel.hidden = true; });
+    Array.prototype.forEach.call(panel.querySelectorAll('.cbtn'), function (btn) {
+      var c = btn.getAttribute('data-c'), d = +btn.getAttribute('data-d');
+      hold(btn, function () {
+        var p = state.players[i];
+        p.counters[c] = Math.max(0, p.counters[c] + d);
+        if (!state.startedAt) { state.startedAt = Date.now(); renderBar(); }
+        save(); render(i);
+      });
     });
 
     hold(panel.querySelector('.minus'), function () { change(i, -1); });
@@ -465,6 +536,11 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     Array.prototype.forEach.call(e.chips, function (chip) {
       chip.addEventListener('click', function () {
         var k = chip.getAttribute('data-k');
+        if (k === 'counters') {
+          e.cpanel.hidden = false;
+          panel.querySelector('.cdone').focus();
+          return;
+        }
         modes[i] = modes[i] === k ? 'life' : k;
         armModeTimer(i);
         render(i);
@@ -501,8 +577,6 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     var p = state.players[i], m = modes[i], lifeDelta = 0;
     if (m === 'life') {
       p.life += d; lifeDelta = d;
-    } else if (m === 'poison') {
-      p.poison = Math.max(0, p.poison + d);
     } else if (m === 'tax') {
       p.tax = Math.max(0, p.tax + d);
     } else {
@@ -569,9 +643,6 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     if (m === 'life') {
       e.num.textContent = p.life;
       e.sub.textContent = '';
-    } else if (m === 'poison') {
-      e.num.textContent = p.poison;
-      e.sub.textContent = 'Poison · liv ' + p.life;
     } else if (m === 'tax') {
       e.num.textContent = '+' + p.tax * 2;
       e.sub.textContent = 'Commander tax · kastad ' + p.tax + (p.tax === 1 ? ' gång' : ' gånger');
@@ -582,9 +653,14 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     }
     Array.prototype.forEach.call(e.chips, function (chip) {
       var k = chip.getAttribute('data-k'), v, label;
-      if (k === 'poison') {
-        v = p.poison; label = 'Poison: ' + v;
-        chip.classList.toggle('lethal', v >= 10);
+      if (k === 'counters') {
+        v = 0;
+        COUNTERS.forEach(function (c) { v += p.counters[c[0]]; });
+        label = 'Counters: ' + v + '. Öppna listan';
+        chip.classList.toggle('lethal', p.counters.poison >= 10);
+        chip.querySelector('b').textContent = v;
+        chip.setAttribute('aria-label', label);
+        return;
       } else if (k === 'tax') {
         v = '+' + p.tax * 2; label = 'Commander tax: ' + v;
       } else {
@@ -595,6 +671,9 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       chip.querySelector('b').textContent = v;
       chip.setAttribute('aria-label', label);
       chip.setAttribute('aria-pressed', String(m === k));
+    });
+    Array.prototype.forEach.call(e.cvals, function (o) {
+      o.textContent = p.counters[o.getAttribute('data-v')];
     });
     var reason = outReason(p);
     e.panel.classList.toggle('out', !!reason);
@@ -635,7 +714,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     state.count = n;
     state.players = state.players.slice(0, n);
     while (state.players.length < n) {
-      state.players.push({ life: state.start, cmd: [0, 0, 0, 0, 0], poison: 0, tax: 0 });
+      state.players.push(newPlayer(state.start));
     }
     state.players.forEach(function (p) { for (var j = n; j < MAX; j++) p.cmd[j] = 0; });
     if (state.turn.active >= n || state.turn.first >= n) state.turn = { active: -1, first: -1, round: 1 };
