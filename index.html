@@ -203,8 +203,12 @@ body:not(.flat) .panel.top { transform: rotate(180deg); }
   white-space: nowrap;
 }
 @media (max-width: 480px) {
-  .bar { justify-content: flex-start; gap: 8px; }
-  .bar .left { gap: 8px; }
+  .bar { justify-content: flex-start; gap: 6px; }
+  .bar .left { gap: 6px; }
+  .bar div { font-size: 18px; }
+  .bar .right { position: static; margin-left: auto; flex: none; }
+  .next-btn { font-size: 17px; padding: 0 12px 0 9px; gap: 6px; }
+  #clock { padding-right: 4px; }
 }
 .next-btn[hidden] { display: none; }
 .next-btn:active { opacity: .75; }
@@ -396,10 +400,10 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
 (function () {
   var KEY = 'commander-lifetracker-v1';
   var MAX = 5;
+  var COUNTERS = [['poison', 'Poison'], ['rad', 'Rad'], ['energy', 'Energy'], ['experience', 'Experience'], ['ticket', 'Tickets']];
   var state = load() || fresh(40, 4);
   var N = state.players.length;
   var modes = [], modeTimers = [], deltaAcc = [], deltaTimers = [];   // mode: 'life' | 'poison' | 'tax' | 'c0'..'c4'
-  var COUNTERS = [['poison', 'Poison'], ['rad', 'Rad'], ['energy', 'Energy'], ['experience', 'Experience'], ['ticket', 'Tickets']];
   var COLORS = ['rosa', 'blå', 'grön', 'gul', 'lila'];
   var els = [];
   var rolling = false;
