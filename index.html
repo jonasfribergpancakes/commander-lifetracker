@@ -291,15 +291,16 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   background: var(--d); color: var(--c);
   font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
 }
-.clist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 6px 16px; }
+.clist { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(110px, 100%), 1fr)); gap: 6px 12px; }
 .crow {
-  display: grid; grid-template-columns: 1fr 34px 30px 34px; align-items: center; gap: 4px;
-  font-size: 14px; font-weight: 700;
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; align-items: center; gap: 2px 4px;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
 }
+.crow span { grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crow output {
   text-align: center;
-  font-family: var(--font-display); font-size: 22px; font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: 0;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .cbtn {
   height: 34px; border-radius: 10px;
@@ -307,11 +308,6 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   font-family: var(--font-display); font-size: 22px; font-weight: 800; line-height: 1;
 }
 .cbtn:active { opacity: .7; }
-@container (max-width: 175px) {
-  .crow { grid-template-columns: 30px 1fr 30px; }
-  .crow span { grid-column: 1 / -1; }
-}
-
 /* phone lying down: little height, so life sits beside the counters */
 @media (orientation: landscape) and (max-height: 520px) {
   .table { gap: 4px; padding: calc(4px + env(safe-area-inset-top)) calc(4px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(4px + env(safe-area-inset-left)); }
@@ -320,7 +316,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   .menu-btn { width: 32px; height: 32px; }
   .next-btn { height: 32px; font-size: 18px; }
   .panel { flex-direction: row; border-radius: 14px; }
-  .panel header { position: absolute; top: 4px; left: 6px; z-index: 1; min-height: 0; padding: 0; }
+  .panel header { position: absolute; top: 4px; right: 6px; z-index: 1; min-height: 0; padding: 0; }
   .turn-btn { padding: 4px 8px; font-size: 11px; }
   .stage { flex: 1 1 90px; min-width: 90px; }
   .tap { font-size: 26px; padding: 2px 0; }
@@ -383,7 +379,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     </fieldset>
     <button class="btn primary" id="new-game">Starta nytt spel</button>
     <label class="check"><input type="checkbox" id="rotate"> Vänd de övre spelarna mot andra sidan bordet</label>
-    <p>Tryck på + ovanför eller − nedanför livet för att ändra det, håll in för att räkna snabbt. Tryck på en ruta under livet för att räkna commander-skada från den spelaren, eller commander tax. Counters öppnar en lista med poison, rad, energy, experience och tickets. Commander-skada dras också från livet. Starta nytt spel slumpar vem som börjar. Tryck sedan på Next turn i mitten när turen är klar. Om ingen har börjat ännu slumpar Next turn en startspelare.</p>
+    <p>Tryck på + ovanför eller − nedanför livet för att ändra det, håll in för att räkna snabbt. Tryck på en ruta under livet för att räkna commander-skada från den spelaren, eller commander tax. Counters öppnar en lista med poison, rad, energy, experience, tickets och Staffanskrik. Commander-skada dras också från livet. Starta nytt spel slumpar vem som börjar. Tryck sedan på Next turn i mitten när turen är klar. Om ingen har börjat ännu slumpar Next turn en startspelare.</p>
     <button class="btn" id="close">Stäng</button>
   </div>
 </div>
@@ -400,7 +396,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
 (function () {
   var KEY = 'commander-lifetracker-v1';
   var MAX = 5;
-  var COUNTERS = [['poison', 'Poison'], ['rad', 'Rad'], ['energy', 'Energy'], ['experience', 'Experience'], ['ticket', 'Tickets']];
+  var COUNTERS = [['poison', 'Poison'], ['rad', 'Rad'], ['energy', 'Energy'], ['experience', 'Experience'], ['ticket', 'Tickets'], ['staffanskrik', 'Staffanskrik', 10]];   // [key, label, max]
   var state = load() || fresh(40, 4);
   var N = state.players.length;
   var modes = [], modeTimers = [], deltaAcc = [], deltaTimers = [];   // mode: 'life' | 'poison' | 'tax' | 'c0'..'c4'
@@ -526,9 +522,11 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     panel.querySelector('.cdone').addEventListener('click', function () { e.cpanel.hidden = true; });
     Array.prototype.forEach.call(panel.querySelectorAll('.cbtn'), function (btn) {
       var c = btn.getAttribute('data-c'), d = +btn.getAttribute('data-d');
+      var max = Infinity;
+      COUNTERS.forEach(function (k) { if (k[0] === c && k[2]) max = k[2]; });
       hold(btn, function () {
         var p = state.players[i];
-        p.counters[c] = Math.max(0, p.counters[c] + d);
+        p.counters[c] = Math.min(max, Math.max(0, p.counters[c] + d));
         if (!state.startedAt) { state.startedAt = Date.now(); renderBar(); }
         save(); render(i);
       });
@@ -677,7 +675,9 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       chip.setAttribute('aria-pressed', String(m === k));
     });
     Array.prototype.forEach.call(e.cvals, function (o) {
-      o.textContent = p.counters[o.getAttribute('data-v')];
+      var key = o.getAttribute('data-v'), max = 0;
+      COUNTERS.forEach(function (k) { if (k[0] === key) max = k[2] || 0; });
+      o.textContent = p.counters[key] + (max ? '/' + max : '');
     });
     var reason = outReason(p);
     e.panel.classList.toggle('out', !!reason);
