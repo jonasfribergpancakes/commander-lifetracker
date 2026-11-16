@@ -23,14 +23,41 @@
   --ink: #3a3632;             /* warm neutral for menu text */
   --paper: #fbf9f5;
   --table: #f1ede6;
+  --soft: rgba(58, 54, 50, .08);   /* quiet fills in the menu */
+  --veil: rgba(58, 54, 50, .5);
   /* each player: pastel, a deeper step of it, and a dark tone of the same hue */
   --p0: #e8b1b8; --p0m: #d88f99; --p0d: #7a2f3b;   /* rose */
   --p1: #b0c7e9; --p1m: #8aa9d6; --p1d: #2c4775;   /* sky */
   --p2: #afd3b6; --p2m: #8ab795; --p2d: #2c5a3a;   /* sage */
   --p3: #e4d098; --p3m: #d0b46d; --p3d: #6b5216;   /* butter */
   --p4: #cdbbe8; --p4m: #b29ddb; --p4d: #4a2f7a;   /* lilac */
+  /* opponent dots: fill and ring */
+  --p0f: var(--p0m); --p0r: var(--p0d);
+  --p1f: var(--p1m); --p1r: var(--p1d);
+  --p2f: var(--p2m); --p2r: var(--p2d);
+  --p3f: var(--p3m); --p3r: var(--p3d);
+  --p4f: var(--p4m); --p4r: var(--p4d);
   --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
   --font-body: "Atkinson Hyperlegible", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+/* dark theme, chosen in the menu: deep tone of each hue with its pastel as text */
+body.dark {
+  color-scheme: dark;
+  --ink: #ece7df;
+  --paper: #25221f;
+  --table: #141211;
+  --soft: rgba(236, 231, 223, .1);
+  --veil: rgba(0, 0, 0, .6);
+  --p0: #4a232a; --p0m: #66323b; --p0d: #f2c4ca;
+  --p1: #1f3152; --p1m: #2d456f; --p1d: #c6d7f2;
+  --p2: #203e2b; --p2m: #2e573c; --p2d: #c4e2ca;
+  --p3: #463712; --p3m: #614d1c; --p3d: #eedfae;
+  --p4: #34244f; --p4m: #48336d; --p4d: #d6c7ee;
+  --p0f: var(--p0d); --p0r: var(--p0m);
+  --p1f: var(--p1d); --p1r: var(--p1m);
+  --p2f: var(--p2d); --p2r: var(--p2m);
+  --p3f: var(--p3d); --p3r: var(--p3m);
+  --p4f: var(--p4d); --p4r: var(--p4m);
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -230,7 +257,7 @@ body:not(.flat) .panel.top { transform: rotate(180deg); }
 
 .overlay {
   position: fixed; inset: 0; z-index: 3;
-  background: rgba(58, 54, 50, .5);
+  background: var(--veil);
   display: grid; place-items: center;
   padding: 16px;
 }
@@ -239,7 +266,7 @@ body:not(.flat) .panel.top { transform: rotate(180deg); }
   width: min(360px, 100%);
   max-height: 100%; overflow-y: auto;
   background: var(--paper);
-  border: 1px solid rgba(58, 54, 50, .12);
+  border: 1px solid var(--soft);
   border-radius: 22px;
   padding: 20px;
   display: flex; flex-direction: column; gap: 14px;
@@ -257,14 +284,14 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
 .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .seg span {
   display: block; text-align: center; padding: 9px 0;
-  border-radius: 9px; background: rgba(58, 54, 50, .08);
+  border-radius: 9px; background: var(--soft);
   font-family: var(--font-display); font-size: 22px; font-weight: 700;
 }
 .seg input:checked + span { background: var(--ink); color: var(--paper); }
 .seg input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 2px; }
 .btn {
   padding: 13px 14px; border-radius: 10px;
-  background: rgba(58, 54, 50, .08);
+  background: var(--soft);
   font-weight: 700; text-align: center;
 }
 .btn.primary { background: var(--ink); color: var(--paper); }
@@ -378,6 +405,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
       </div>
     </fieldset>
     <button class="btn primary" id="new-game">Starta nytt spel</button>
+    <label class="check"><input type="checkbox" id="dark"> Mörkt tema</label>
     <label class="check"><input type="checkbox" id="rotate"> Vänd de övre spelarna mot andra sidan bordet</label>
     <p>Tryck på + ovanför eller − nedanför livet för att ändra det, håll in för att räkna snabbt. Tryck på en ruta under livet för att räkna commander-skada från den spelaren, eller commander tax. Counters öppnar en lista med poison, rad, energy, experience, tickets och Staffanskrik. Commander-skada dras också från livet. Starta nytt spel slumpar vem som börjar. Tryck sedan på Next turn i mitten när turen är klar. Om ingen har börjat ännu slumpar Next turn en startspelare.</p>
     <button class="btn" id="close">Stäng</button>
@@ -477,7 +505,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     for (var j = 0; j < N; j++) {
       if (j === i) continue;
       chips += '<button class="chip" data-k="c' + j + '" aria-pressed="false">' +
-               '<i style="background:var(--p' + j + 'm);border-color:var(--p' + j + 'd)"></i><b>0</b></button>';
+               '<i style="background:var(--p' + j + 'f);border-color:var(--p' + j + 'r)"></i><b>0</b></button>';
     }
     var rows = COUNTERS.map(function (k) {
       return '<div class="crow"><span>' + k[1] + '</span>' +
@@ -696,6 +724,7 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     document.getElementById('start-' + state.start).checked = true;
     document.getElementById('count-' + state.count).checked = true;
     rotate.checked = state.rotate;
+    dark.checked = !!state.dark;
     overlay.hidden = false;
     document.getElementById('close').focus();
   }
@@ -711,7 +740,16 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
   rotate.addEventListener('change', function () {
     state.rotate = rotate.checked; save(); applyLayout();
   });
-  function applyLayout() { document.body.classList.toggle('flat', !state.rotate); }
+  var dark = document.getElementById('dark');
+  dark.addEventListener('change', function () {
+    state.dark = dark.checked; save(); applyLayout();
+  });
+  function applyLayout() {
+    document.body.classList.toggle('flat', !state.rotate);
+    document.body.classList.toggle('dark', !!state.dark);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', state.dark ? '#141211' : '#f1ede6');
+  }
 
   // the table changes at once; players who stay keep their totals
   function setCount(n) {
@@ -725,9 +763,9 @@ legend { float: left; padding: 0; margin-right: 10px; font-weight: 700; }
     save(); buildAll(); renderAll(); renderBar();
   }
   function newGame() {
-    var keepRotate = state.rotate;
+    var keepRotate = state.rotate, keepDark = state.dark;
     state = fresh(state.start, state.count);
-    state.rotate = keepRotate;
+    state.rotate = keepRotate; state.dark = keepDark;
     save(); buildAll(); renderAll(); renderBar();
   }
   document.getElementById('new-game').addEventListener('click', function () { newGame(); roll(); });
